@@ -20,3 +20,7 @@ tests/
 
 # LLM cache
 .vlm_cache.json
+
+# Internal docs (keep locally, not for public repo)
+PROJECT_HANDOVER.md
+CHARTABILITY_MAPPING.md
