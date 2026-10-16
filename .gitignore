@@ -24,3 +24,6 @@ tests/
 # Internal docs (keep locally, not for public repo)
 PROJECT_HANDOVER.md
 CHARTABILITY_MAPPING.md
+
+# Local dev helper scripts
+src/pyrun.sh
