@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+
+# Experiment outputs & data (not code)
+logs/
+data/
+_archive/
+papers/
+.workbuddy/
+_scratch/
+docs/
+results_summary.csv
+tests/
+
+# LLM cache
+.vlm_cache.json
