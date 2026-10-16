@@ -17,25 +17,30 @@ from pathlib import Path
 
 from .checker import CheckResult
 
-# ── 可配置项（环境变量覆盖，默认值为本机开发环境）──────────────────────
-# LLM 服务地址（兼容 OpenAI API 协议的端点）
-LLM_BASE_URL = os.environ.get("CHART_LLM_BASE_URL", "https://xplt.sdu.edu.cn:4000")
+# ── 可配置项（全部通过环境变量设置）──────────────────────────────────
+# LLM 服务地址（兼容 OpenAI API 协议的端点），必须自行设置
+LLM_BASE_URL = os.environ.get("CHART_LLM_BASE_URL", "")
 # 视觉模型（看图打分）和文本模型（文字打分）
-_VL_MODEL = os.environ.get("CHART_VLM_MODEL", "Ali-dashscope/Qwen3.8-Flash")
-_TX_MODEL = os.environ.get("CHART_LLM_MODEL", "Ali-dashscope/GLM-5.3-Flash")
-# Edge 浏览器路径（SVG 转 PNG 截图用），自动检测常见位置
+_VL_MODEL = os.environ.get("CHART_VLM_MODEL", "gpt-4o")
+_TX_MODEL = os.environ.get("CHART_LLM_MODEL", "gpt-4o-mini")
+# 浏览器路径（SVG 转 PNG 截图用），自动检测常见位置
 def _detect_edge():
     candidates = [
         os.environ.get("CHART_EDGE_PATH", ""),
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         "/usr/bin/google-chrome",
+        "/usr/bin/chromium",
     ]
     for c in candidates:
         if c and Path(c).exists():
             return c
-    return candidates[1]  # fallback
+    import warnings
+    warnings.warn("未找到浏览器（Edge/Chrome），VLM 截图功能将不可用。"
+                  "请设置 CHART_EDGE_PATH 环境变量。")
+    return ""
 EDGE = _detect_edge()
 
 _G0_RUBRIC = """你能看到这张图。只回答一个问题：图上有没有【真的画出数据标记】
@@ -65,14 +70,22 @@ _TX_RUBRIC = """只看文字与CSV，评四项0/1/2：
 
 
 def _client(timeout: int = 120):
-    """timeout=120 够 VLM 打分/看图；代码生成（推理模型长思考）用 600，
-    见 agents/image_to_chart.py——120s 会让生成请求必超时（2026-10-15 实测）。"""
+    """timeout=120 够 VLM 打分/看图；代码生成（推理模型长思考）用 600。"""
     from openai import OpenAI
+    if not LLM_BASE_URL:
+        raise RuntimeError(
+            "LLM 层未配置：请设置环境变量 CHART_LLM_BASE_URL 和 OPENAI_API_KEY。"
+            "不设这两个变量时规则检查仍可正常运行。")
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError(
+            "LLM 层未配置：请设置环境变量 OPENAI_API_KEY。")
     return OpenAI(base_url=LLM_BASE_URL,
                   api_key=os.environ["OPENAI_API_KEY"], timeout=timeout)
 
 
 def _svg_to_png(svg_path: Path, png: Path) -> None:
+    if not EDGE:
+        return
     png = png.resolve()
     if png.exists() and png.stat().st_size > 1000:
         return
@@ -82,9 +95,9 @@ def _svg_to_png(svg_path: Path, png: Path) -> None:
     if m:
         w, h = int(float(m.group(1))), int(float(m.group(2)))
     win = f"{w+24},{h+24}"
-    url = "file:///" + str(svg_path.resolve()).replace("\\", "/")
-    # 每进程独立 profile：并发跑批时共享目录会导致 Edge 抢锁、截图失败（实测）
-    prof = (Path(tempfile.gettempdir()) / f"edge_headless_profile_{os.getpid()}").resolve()
+    url = svg_path.resolve().as_uri()
+    # 每进程独立 profile：并发跑批时共享目录会导致浏览器抢锁、截图失败
+    prof = (Path(tempfile.gettempdir()) / f"browser_headless_profile_{os.getpid()}").resolve()
     subprocess.run([EDGE, "--headless", "--disable-gpu",
                     f"--user-data-dir={prof}", f"--screenshot={png}",
                     f"--window-size={win}", url], capture_output=True, timeout=60)
