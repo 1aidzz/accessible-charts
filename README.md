@@ -57,29 +57,47 @@ pip install -r requirements.txt
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `OPENAI_API_KEY` | LLM 层必填 | API Key |
-| `CHART_LLM_BASE_URL` | LLM 层必填 | OpenAI 兼容的 API 地址 |
-| `CHART_VLM_MODEL` | 有视觉任务时必填 | 视觉模型名（能看图的模型） |
-| `CHART_LLM_MODEL` | 文本任务时必填 | 文本模型名（只读写文字的模型） |
+| `CHART_LLM_BASE_URL` | 文本任务必填 | 文本模型 API 地址 |
+| `CHART_LLM_API_KEY` | 文本任务必填 | 文本模型 Key（不设则回退到 `OPENAI_API_KEY`） |
+| `CHART_LLM_MODEL` | 否 | 文本模型名（默认 gpt-4o-mini） |
+| `CHART_VLM_BASE_URL` | 视觉任务必填 | 视觉模型 API 地址（不设则复用 LLM 地址） |
+| `CHART_VLM_API_KEY` | 视觉任务必填 | 视觉模型 Key（不设则复用 LLM Key） |
+| `CHART_VLM_MODEL` | 视觉任务必填 | 视觉模型名（默认 gpt-4o） |
 | `CHART_EDGE_PATH` | 否 | 浏览器路径（SVG 截图用，自动检测） |
 
-不设 `OPENAI_API_KEY` 或 `CHART_LLM_BASE_URL` 时，规则检查照常跑，LLM 层自动跳过。
+VLM 和 LLM 可以部署在不同服务器上，各自有独立的地址和 Key。如果两者在同一个网关下，只需设 LLM 的四个变量即可。
 
-**注意**：模型名必须和你的 API 地址上实际部署的模型对应。如果你用的是 OpenAI 官方：
+不配置任何 LLM 变量时，规则检查照常跑，LLM 层自动跳过。
+
+**OpenAI 官方：**
 
 ```bash
-export OPENAI_API_KEY="sk-..."
 export CHART_LLM_BASE_URL="https://api.openai.com/v1"
-export CHART_VLM_MODEL="gpt-4o"
+export CHART_LLM_API_KEY="sk-..."
 export CHART_LLM_MODEL="gpt-4o-mini"
+export CHART_VLM_MODEL="gpt-4o"
 ```
 
-如果你用的是自建/第三方 OpenAI 兼容网关，模型名按网关实际提供的填：
+**自建/第三方网关（两者同地址）：**
 
 ```bash
 export CHART_LLM_BASE_URL="https://your-gateway:4000"
-export CHART_VLM_MODEL="Ali-dashscope/Qwen3.8-Flash"
+export CHART_LLM_API_KEY="sk-..."
 export CHART_LLM_MODEL="Ali-dashscope/GLM-5.3-Flash"
+export CHART_VLM_MODEL="Ali-dashscope/Qwen3.8-Flash"
+```
+
+**VLM 和 LLM 分服务器：**
+
+```bash
+# 文本模型
+export CHART_LLM_BASE_URL="https://text-server:4000"
+export CHART_LLM_API_KEY="text-key"
+export CHART_LLM_MODEL="GLM-5.3-Flash"
+# 视觉模型（独立地址和 Key）
+export CHART_VLM_BASE_URL="https://vision-server:4000"
+export CHART_VLM_API_KEY="vision-key"
+export CHART_VLM_MODEL="Qwen3.8-Flash"
 ```
 
 ### 运行

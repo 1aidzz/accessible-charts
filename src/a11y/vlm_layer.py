@@ -18,11 +18,16 @@ from pathlib import Path
 from .checker import CheckResult
 
 # ── 可配置项（全部通过环境变量设置）──────────────────────────────────
-# LLM 服务地址（兼容 OpenAI API 协议的端点），必须自行设置
+# 文本模型（只读写文字）—— alt-text 生成、代码生成、U2/A3/L3/L4 评分
 LLM_BASE_URL = os.environ.get("CHART_LLM_BASE_URL", "")
-# 视觉模型（看图打分）和文本模型（文字打分）
-_VL_MODEL = os.environ.get("CHART_VLM_MODEL", "gpt-4o")
+LLM_API_KEY = os.environ.get("CHART_LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
 _TX_MODEL = os.environ.get("CHART_LLM_MODEL", "gpt-4o-mini")
+
+# 视觉模型（能看图）—— G0 门、U1 评分
+# 不单独设置时，自动复用文本模型的地址和 Key
+VLM_BASE_URL = os.environ.get("CHART_VLM_BASE_URL", LLM_BASE_URL)
+VLM_API_KEY = os.environ.get("CHART_VLM_API_KEY", LLM_API_KEY)
+_VL_MODEL = os.environ.get("CHART_VLM_MODEL", "gpt-4o")
 # 浏览器路径（SVG 转 PNG 截图用），自动检测常见位置
 def _detect_edge():
     candidates = [
@@ -69,18 +74,23 @@ _TX_RUBRIC = """只看文字与CSV，评四项0/1/2：
 "l3_patterns_accuracy":int,"l4_context_caveated":int}。"""
 
 
-def _client(timeout: int = 120):
-    """timeout=120 够 VLM 打分/看图；代码生成（推理模型长思考）用 600。"""
+def _client(timeout: int = 120, kind: str = "text"):
+    """kind="text" → 文本模型客户端；kind="vision" → 视觉模型客户端。"""
     from openai import OpenAI
-    if not LLM_BASE_URL:
+    if kind == "vision":
+        url, key = VLM_BASE_URL, VLM_API_KEY
+    else:
+        url, key = LLM_BASE_URL, LLM_API_KEY
+    if not url:
         raise RuntimeError(
-            "LLM 层未配置：请设置环境变量 CHART_LLM_BASE_URL 和 OPENAI_API_KEY。"
-            "不设这两个变量时规则检查仍可正常运行。")
-    if not os.environ.get("OPENAI_API_KEY"):
+            f"{'视觉模型' if kind == 'vision' else 'LLM'}层未配置："
+            f"请设置环境变量 CHART_{'VLM' if kind == 'vision' else 'LLM'}_BASE_URL "
+            f"和对应 API Key。不设时规则检查仍可正常运行。")
+    if not key:
         raise RuntimeError(
-            "LLM 层未配置：请设置环境变量 OPENAI_API_KEY。")
-    return OpenAI(base_url=LLM_BASE_URL,
-                  api_key=os.environ["OPENAI_API_KEY"], timeout=timeout)
+            f"{'视觉模型' if kind == 'vision' else 'LLM'}层未配置："
+            f"请设置对应的 API Key 环境变量。")
+    return OpenAI(base_url=url, api_key=key, timeout=timeout)
 
 
 def _svg_to_png(svg_path: Path, png: Path) -> None:
@@ -114,7 +124,7 @@ def vlm_legibility_gate(svg: str, ctx: dict, svg_path: str | None = None):
     if not (ctx or {}).get("_vlm") or not os.environ.get("OPENAI_API_KEY"):
         return None, None
     try:
-        c = _client()
+        c = _client(kind="vision")
         sp = Path(svg_path) if svg_path else _write_tmp_svg(svg)
         png = Path(tempfile.gettempdir()) / ("g0png_" + str(abs(hash(svg))) + ".png")
         if png.exists():
@@ -268,27 +278,23 @@ def run_vlm_judge(svg: str, ctx: dict, svg_path: str | None = None) -> list[Chec
     ids = ("U1", "U2", "A3", "L3", "L4")
     if not (ctx or {}).get("_vlm"):
         return []
-    if not os.environ.get("OPENAI_API_KEY"):
+    if not LLM_API_KEY:
         return [CheckResult(i, _JUDGE_NAMES[i], False, "VLM", "skip",
-                            "LLM 质量层开启但无 OPENAI_API_KEY") for i in ids]
-    try:
-        c = _client()
-    except Exception as exc:
-        return [CheckResult(i, _JUDGE_NAMES[i], False, "VLM", "skip",
-                            f"LLM client 构造失败: {exc!r}"[:120]) for i in ids]
-
+                            "LLM 质量层开启但未配置 API Key") for i in ids]
     out: list[CheckResult] = []
 
-    # --- U1 带图（独立 try：一段失败不连累文本四项） ---
+    # --- U1 带图（视觉模型客户端，独立 try：一段失败不连累文本四项） ---
     try:
-        out.append(_judge_u1(svg, ctx, svg_path, c))
+        vc = _client(kind="vision")
+        out.append(_judge_u1(svg, ctx, svg_path, vc))
     except Exception as exc:
         out.append(CheckResult("U1", _JUDGE_NAMES["U1"], False, "VLM", "skip",
                                f"U1 评分异常: {exc!r}"[:120]))
 
-    # --- U2/A3/L3/L4 纯文本（一次调用） ---
+    # --- U2/A3/L3/L4 纯文本（文本模型客户端，一次调用） ---
     try:
-        out.extend(_judge_texts4(ctx, c))
+        tc = _client(kind="text")
+        out.extend(_judge_texts4(ctx, tc))
     except Exception as exc:
         out.extend(CheckResult(i, _JUDGE_NAMES[i], False, "VLM", "skip",
                                f"文本评分异常: {exc!r}"[:120])
