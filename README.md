@@ -52,24 +52,32 @@ src/
 ### 安装依赖
 
 ```bash
-pip install matplotlib pandas openai
+### 环境变量（可选）
+
+LLM 相关配置都可以通过环境变量覆盖，不设则用默认值：
+
+```bash
+# 必填：LLM API Key
+export OPENAI_API_KEY="your-key"
+
+# 可选：LLM 服务地址（默认连校内服务器）
+export CHART_LLM_BASE_URL="https://your-openai-compatible-endpoint"
+
+# 可选：模型名（默认用 Qwen 视觉 + GLM 文本）
+export CHART_VLM_MODEL="Qwen3.8-Flash"
+export CHART_LLM_MODEL="GLM-5.3-Flash"
+
+# 可选：浏览器路径（SVG 截图用，自动检测 Edge/Chrome）
+export CHART_EDGE_PATH="/path/to/chrome"
 ```
+
+不设 `OPENAI_API_KEY` 时，规则检查照常跑，LLM 层自动跳过。
 
 ### 运行
 
 ```bash
-# 方式一：从图片生成图表 + alt-text
 cd src
 python run_goal2.py --image ../data/chartqa/multi_col_80264.png
-
-# 方式二：直接在代码中调用
-python -c "
-import sys; sys.path.insert(0, 'src')
-from a11y import run_chartability
-# 传入 SVG 文件路径
-result = run_chartability('your_chart.svg')
-print(result['cpr_all'])
-"
 ```
 
 ### 输出

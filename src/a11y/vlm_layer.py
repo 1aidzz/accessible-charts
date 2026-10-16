@@ -17,9 +17,26 @@ from pathlib import Path
 
 from .checker import CheckResult
 
-EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-_VL_MODEL = "Ali-dashscope/Qwen3.8-Flash"
-_TX_MODEL = "Ali-dashscope/GLM-5.3-Flash"
+# ── 可配置项（环境变量覆盖，默认值为本机开发环境）──────────────────────
+# LLM 服务地址（兼容 OpenAI API 协议的端点）
+LLM_BASE_URL = os.environ.get("CHART_LLM_BASE_URL", "https://xplt.sdu.edu.cn:4000")
+# 视觉模型（看图打分）和文本模型（文字打分）
+_VL_MODEL = os.environ.get("CHART_VLM_MODEL", "Ali-dashscope/Qwen3.8-Flash")
+_TX_MODEL = os.environ.get("CHART_LLM_MODEL", "Ali-dashscope/GLM-5.3-Flash")
+# Edge 浏览器路径（SVG 转 PNG 截图用），自动检测常见位置
+def _detect_edge():
+    candidates = [
+        os.environ.get("CHART_EDGE_PATH", ""),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/usr/bin/google-chrome",
+    ]
+    for c in candidates:
+        if c and Path(c).exists():
+            return c
+    return candidates[1]  # fallback
+EDGE = _detect_edge()
 
 _G0_RUBRIC = """你能看到这张图。只回答一个问题：图上有没有【真的画出数据标记】
 （柱/点/线/扇区等由数据驱动的图形元素）？
@@ -51,7 +68,7 @@ def _client(timeout: int = 120):
     """timeout=120 够 VLM 打分/看图；代码生成（推理模型长思考）用 600，
     见 agents/image_to_chart.py——120s 会让生成请求必超时（2026-10-15 实测）。"""
     from openai import OpenAI
-    return OpenAI(base_url="https://xplt.sdu.edu.cn:4000",  # 服务端改版后无 /v1 前缀（2026-10-15 实测）
+    return OpenAI(base_url=LLM_BASE_URL,
                   api_key=os.environ["OPENAI_API_KEY"], timeout=timeout)
 
 
