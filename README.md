@@ -57,17 +57,29 @@ pip install -r requirements.txt
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `OPENAI_API_KEY` | LLM 层必填 | LLM API Key |
-| `CHART_LLM_BASE_URL` | LLM 层必填 | OpenAI 兼容的 API 地址，如 `https://api.openai.com/v1` |
-| `CHART_VLM_MODEL` | 否 | 视觉模型名（默认 Qwen3.8-Flash） |
-| `CHART_LLM_MODEL` | 否 | 文本模型名（默认 GLM-5.3-Flash） |
-| `CHART_EDGE_PATH` | 否 | 浏览器路径（SVG 截图用，自动检测 Edge/Chrome） |
+| `OPENAI_API_KEY` | LLM 层必填 | API Key |
+| `CHART_LLM_BASE_URL` | LLM 层必填 | OpenAI 兼容的 API 地址 |
+| `CHART_VLM_MODEL` | 有视觉任务时必填 | 视觉模型名（能看图的模型） |
+| `CHART_LLM_MODEL` | 文本任务时必填 | 文本模型名（只读写文字的模型） |
+| `CHART_EDGE_PATH` | 否 | 浏览器路径（SVG 截图用，自动检测） |
 
 不设 `OPENAI_API_KEY` 或 `CHART_LLM_BASE_URL` 时，规则检查照常跑，LLM 层自动跳过。
 
+**注意**：模型名必须和你的 API 地址上实际部署的模型对应。如果你用的是 OpenAI 官方：
+
 ```bash
-export OPENAI_API_KEY="your-key"
+export OPENAI_API_KEY="sk-..."
 export CHART_LLM_BASE_URL="https://api.openai.com/v1"
+export CHART_VLM_MODEL="gpt-4o"
+export CHART_LLM_MODEL="gpt-4o-mini"
+```
+
+如果你用的是自建/第三方 OpenAI 兼容网关，模型名按网关实际提供的填：
+
+```bash
+export CHART_LLM_BASE_URL="https://your-gateway:4000"
+export CHART_VLM_MODEL="Ali-dashscope/Qwen3.8-Flash"
+export CHART_LLM_MODEL="Ali-dashscope/GLM-5.3-Flash"
 ```
 
 ### 运行
